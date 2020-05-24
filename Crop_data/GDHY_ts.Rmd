@@ -1,0 +1,77 @@
+---
+title: "GDHY_ts"
+author: "Raed Hamed"
+date: "22-5-2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## GDHY_ts
+
+The main properties of this script is to prepare and post-process the GDHY global gridded crop yield data into detrended spatial averaged time series. Summary statistics and associated plots are generated. 
+
+```{r clean workspace, include=FALSE}
+rm(list = ls())
+graphics.off()
+gc()
+```
+
+```{r packages and functions, echo=True, include=FALSE}
+#Load packages:
+
+### General libraries
+library("tidyverse")
+library("RColorBrewer")
+
+### Time series libraries
+library("zoo")
+library("lubridate")
+
+### Spatial libraries
+#library("synoptReg")
+#library("spData")
+#library("SDMTools")
+l#ibrary("rgdal")
+library("raster")
+library("ncdf4")
+#library("sf")
+
+### Plotting libraries
+library("maptools")
+library("rasterVis")
+library("gridExtra")
+library("ggpmisc")
+
+```
+
+```{r set directory, echo=FALSE}
+dir_in    <-"C:/Users/rhd630/Desktop/PhD/Academic/Modelling/Input_data/"  
+#dir_FAO   <- paste0(dir_in,"/FAOSTAT")
+#dir_agmip <- paste0(dir_in,"/AgMIP_P1")
+dir_GHDY  <- paste0(dir_in,"/GDHY/soybean") 
+dir_micra <- paste0(dir_in,"/MIRCA2000")
+
+#dir_CRU_temp <-paste0(dir_in,"/CRU/tmp/")
+
+#dir_CRU_pre <-paste0(dir_in,"/CRU/pre/")
+
+```
+
+```{r Load Yield dataset, echo=FALSE}
+
+nc_list_yield <- list.files(dir_GHDY) #list files in dias directory
+#-----------------------------------------------------------------------------------------------------------
+nc_bricklist_yield <- list() 
+for(i in 1:length(nc_list_yield)){ 
+  nc_bricklist_yield[[i]] <- brick(paste0(dir_GHDY,"/",nc_list_yield[[i]])) #read nc files into raster bricks
+} 
+#-----------------------------------------------------------------------------------------------------------
+nc_stack_yield <- stack(nc_bricklist_yield)     #stack files
+dim(nc_stack_yield)
+extent(nc_stack_yield)
+nc_stack_yield <-raster::rotate(nc_stack_yield) #Adjust extent
+
+```

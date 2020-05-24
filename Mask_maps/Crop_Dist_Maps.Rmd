@@ -1,0 +1,74 @@
+---
+title: "Crop_distribution_maps"
+author: "Raed Hamed"
+date: "23-5-2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Crop_Distribution_Maps
+
+This script explores the different information on global crop distribution maps from MIRCA2000 and MAPSPAM data sources
+
+```{r clean workspace, include=FALSE}
+rm(list = ls())
+graphics.off()
+gc()
+```
+
+```{r packages and functions, echo=True, include=FALSE}
+library("tidyverse")
+library("raster")
+library("ncdf4")
+```
+
+```{r set directory, echo=FALSE}
+dir_in    <-"C:/Users/rhd630/Desktop/PhD/Academic/Modelling/Input_data/"  
+dir_micra <- paste0(dir_in,"/MIRCA2000")
+dir_spam  <- paste0(dir_in,"/SPAM_SOY_Harvested_Area/")
+```
+
+```{r Load dist maps, echo=FALSE}
+
+SPAM_rainfed_2000_n <- list.files(dir_spam, recursive = TRUE, pattern ="2000.*\\_R.tif$") 
+SPAM_rainfed_2005_n <- list.files(dir_spam, recursive = TRUE, pattern ="2005.*\\_R.tif$") 
+SPAM_rainfed_2010_n <- list.files(dir_spam, recursive = TRUE, pattern ="2010.*\\_R.tif$") 
+#-----------------------------------------------------------------------------------------------------------
+file_asc_gz_mirca_rfc <-file.path(dir_micra,'annual_area_harvested_rfc_crop08_ha_30mn.asc.gz')
+```
+
+```{r Process maps, echo=FALSE}
+#Read as raster
+SPAM_rainfed_2000 <-raster(paste0(dir_spam,SPAM_rainfed_2000_n)) 
+SPAM_rainfed_2005 <-raster(paste0(dir_spam,SPAM_rainfed_2005_n))
+SPAM_rainfed_2010 <-raster(paste0(dir_spam,SPAM_rainfed_2010_n))
+#-----------------------------------------------------------------------------------------------------------
+mirca_rainfed <-raster(read.asc.gz(file_asc_gz_mirca_rfc)) 
+
+#Adjust SPAM map extent
+extent(SPAM_rainfed_2000) <- extent(mirca_rainfed) 
+extent(SPAM_rainfed_2005) <- extent(mirca_rainfed) 
+extent(SPAM_rainfed_2010) <- extent(mirca_rainfed) 
+
+#Adjust SPAM map resolution
+SPAM_rainfed_2000_agg <- aggregate(SPAM_rainfed_2000, fact = 0.5/res(SPAM_rainfed_2000),fun=sum) 
+SPAM_rainfed_2005_agg <- aggregate(SPAM_rainfed_2005, fact = 0.5/res(SPAM_rainfed_2000),fun=sum) 
+SPAM_rainfed_2010_agg <- aggregate(SPAM_rainfed_2010, fact = 0.5/res(SPAM_rainfed_2000),fun=sum) 
+
+#Select for rainfed area per grid to be at least 10k ha
+SPAM_rainfed_2000_10k <- (SPAM_rainfed_2000_agg >10000)
+SPAM_rainfed_2005_10k <- (SPAM_rainfed_2005_agg >10000)
+SPAM_rainfed_2010_10k <- (SPAM_rainfed_2010_agg >10000)
+#-----------------------------------------------------------------------------------------------------------
+mirca_rainfed_10k     <- (mirca_rainfed >10000)
+
+#Compare datasets
+plot(SPAM_rainfed_2000_10k != mirca_rainfed_10k, main="Difference between SPAM and MIRCA datasets for Soybean rainfed grids")
+#-----------------------------------------------------------------------------------------------------------
+#plot(SPAM_rainfed_2000_10k != SPAM_rainfed_2005_10k, main="Difference between SPAM 2000 and 2005 datasets for rainfed soybean")
+plot(SPAM_rainfed_2000_10k != SPAM_rainfed_2010_10k, main="Difference between SPAM 2000 and 2010 datasets for rainfed soybean")
+#plot(SPAM_rainfed_2005_10k != SPAM_rainfed_2010_10k, main="Difference between SPAM 2005 and 2010 datasets for rainfed soybean")
+```
