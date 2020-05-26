@@ -19,59 +19,187 @@ graphics.off()
 gc()
 ```
 
-```{r packages and functions, echo=True, include=FALSE}
-#Load packages:
+```{r packages, data and functions, echo=True, include=FALSE}
+#Load packages and datasets:
 
 ### General libraries
 library("tidyverse")
 library("RColorBrewer")
-
-### Time series libraries
-library("zoo")
-library("lubridate")
-
-### Spatial libraries
-#library("synoptReg")
-#library("spData")
-#library("SDMTools")
-l#ibrary("rgdal")
 library("raster")
 library("ncdf4")
-#library("sf")
-
-### Plotting libraries
-library("maptools")
 library("rasterVis")
-library("gridExtra")
-library("ggpmisc")
+library("USAboundaries")
+library("usmap")
+
+data(wrld_simpl)
+mapTheme <- rasterTheme(region=brewer.pal(10, "RdYlBu"))
+mapTheme_harvest <- rasterTheme(region=rev(brewer.pal(10, "RdYlGn")))
+mapTheme_Yield <- rasterTheme(region=brewer.pal(10, "RdYlGn"))
+
 
 ```
 
 ```{r set directory, echo=FALSE}
 dir_in    <-"C:/Users/rhd630/Desktop/PhD/Academic/Modelling/Input_data/"  
-#dir_FAO   <- paste0(dir_in,"/FAOSTAT")
-#dir_agmip <- paste0(dir_in,"/AgMIP_P1")
 dir_GHDY  <- paste0(dir_in,"/GDHY/soybean") 
 dir_micra <- paste0(dir_in,"/MIRCA2000")
-
-#dir_CRU_temp <-paste0(dir_in,"/CRU/tmp/")
-
-#dir_CRU_pre <-paste0(dir_in,"/CRU/pre/")
-
 ```
 
-```{r Load Yield dataset, echo=FALSE}
+```{r Load Yield Dataset, echo=FALSE}
 
 nc_list_yield <- list.files(dir_GHDY) #list files in dias directory
 #-----------------------------------------------------------------------------------------------------------
+#read nc files into raster bricks
 nc_bricklist_yield <- list() 
 for(i in 1:length(nc_list_yield)){ 
-  nc_bricklist_yield[[i]] <- brick(paste0(dir_GHDY,"/",nc_list_yield[[i]])) #read nc files into raster bricks
+  nc_bricklist_yield[[i]] <- brick(paste0(dir_GHDY,"/",nc_list_yield[[i]])) 
 } 
 #-----------------------------------------------------------------------------------------------------------
-nc_stack_yield <- stack(nc_bricklist_yield)     #stack files
-dim(nc_stack_yield)
-extent(nc_stack_yield)
-nc_stack_yield <-raster::rotate(nc_stack_yield) #Adjust extent
+#stack files
+nc_stack_yield <- stack(nc_bricklist_yield)    
+#Adjust extent
+nc_stack_yield <-raster::rotate(nc_stack_yield)
+
+```
+
+```{r Load Mirca Dataset, echo=FALSE}
+#### Load Mirca maps
+file_asc_gz_mirca_irc <-file.path(dir_micra,'annual_area_harvested_irc_crop08_ha_30mn.asc.gz')   
+file_asc_gz_mirca_rfc <-file.path(dir_micra,'annual_area_harvested_rfc_crop08_ha_30mn.asc.gz')
+#-----------------------------------------------------------------------------------------------------------
+mirca_irc <-read.asc.gz(file_asc_gz_mirca_irc)
+mirca_rfc <-read.asc.gz(file_asc_gz_mirca_rfc)
+#-----------------------------------------------------------------------------------------------------------
+#Irrigated harvested soybean area
+mirca_irc_raster <-raster(mirca_irc)
+#Rainfed harvested soybean area
+mirca_rfc_raster <-raster(mirca_rfc)
+```
+
+```{r Process and plot Mirca Dataset, echo=FALSE}
+total_harvested_area <- mirca_irc_raster +  mirca_rfc_raster
+fraction_rf_to_ir <-mirca_rfc_raster/total_harvested_area
+
+
+mask(log10(mirca_irc_raster) ,log10(mirca_irc_raster) > 0 , maskvalue=FALSE) + mask(log10(mirca_rfc_raster) ,log10(mirca_rfc_raster) > 0 , maskvalue=FALSE) 
+
+
+plot_fraction_rf_to_ir <- levelplot(fraction_rf_to_ir,
+                   margin=F,
+                   par.settings=mapTheme,
+                   main="Global pattern of the degree of rainfed harvested area for soybeans")
+
+plot_fraction_rf_to_ir + latticeExtra::layer(sp.lines(wrld_simpl[wrld_simpl@data$UN!="10",], col="gray30", lwd=0.5)) 
+```
+
+```{r Harvested Area according to Mirca Dataset, echo=FALSE}
+#Soybeans harvested area over rainfed regions
+#Area classified as rainfed when at least 90% of the area share is rainfed (see Schauberger et al.2017)
+rainfed_harvest_90 <- mask(mirca_rfc_raster, fraction_rf_to_ir >= 0.9, maskvalue=FALSE) 
+log_rainfed_harvest_90 <-mask(log10(rainfed_harvest_90),log10(rainfed_harvest_90) >= 1,maskvalue=FALSE )
+
+plot_harvest_rainfed <- levelplot(log_rainfed_harvest_90,
+                   margin=F,
+                   par.settings=mapTheme_harvest,
+                   main="Soybeans harvested area over rainfed regions (ha) (log10)",
+                   sub="Area classified as rainfed when at least 90% of the area share is rainfed (see Schauberger et al.2017)")
+
+plot_harvest_rainfed + latticeExtra::layer(sp.lines(wrld_simpl[wrld_simpl@data$UN!="10",], col="gray30", lwd=0.5)) 
+
+```
+
+```{r Harvested Area according to Mirca Dataset for the US, echo=FALSE, warning=TRUE}
+#-----------------------------------------------------------------------------------------------------------
+usa_states <- as_Spatial(st_geometry(us_states()))
+states_ommit <-as_Spatial(st_geometry(us_states(state = c("AK","HI","PR"))))
+states_of_interest <-as_Spatial(st_geometry(us_states(state = c("MN","IL","IA","IN","NE","OH"))))
+states_of_interest_long <-as_Spatial(st_geometry(us_states(state = c("MN","IL","IA","IN","NE","OH","SD","ND","MO","AR"))))
+
+spatial_usa <-usa_states-states_ommit
+#-----------------------------------------------------------------------------------------------------------
+log_rainfed_harvest_90_US <-crop(log_rainfed_harvest_90, spatial_usa) 
+log_rainfed_harvest_90_US <-mask(log_rainfed_harvest_90_US, spatial_usa) 
+#-----------------------------------------------------------------------------------------------------------
+plot_rainfed_yield_US <- levelplot(mean(log_rainfed_harvest_90_US),
+                   margin=F,
+                   par.settings=mapTheme_harvest,
+                   main="Soybeans harvested area over rainfed regions in the US (ha) (log10)",
+                   sub="Area classified as rainfed when at least 90% of the area share is rainfed (see Schauberger et al.2017)")
+
+plot_rainfed_yield_US + latticeExtra::layer(sp.lines(spatial_usa, col="gray30", lwd=0.5)) +latticeExtra::layer(sp.lines(states_of_interest_long, col="midnightblue",lwd=2))
+
+
+
+```
+
+```{r selecting cropping system and geographical area , echo=FALSE, warning=TRUE}
+
+rainfed_Yield_GDHY <-crop(nc_stack_yield, fraction_rf_to_ir >= 0.9, maskvalue =FALSE) 
+#-----------------------------------------------------------------------------------------------------------
+usa_states <- as_Spatial(st_geometry(us_states()))
+states_ommit <-as_Spatial(st_geometry(us_states(state = c("AK","HI","PR"))))
+states_of_interest <-as_Spatial(st_geometry(us_states(state = c("MN","IL","IA","IN","NE","OH"))))
+spatial_usa <-usa_states-states_ommit
+#-----------------------------------------------------------------------------------------------------------
+rainfed_Yield_GDHY_US <-crop(nc_stack_yield, spatial_usa) 
+rainfed_Yield_GDHY_US <-mask(rainfed_Yield_GDHY_US, spatial_usa) 
+#-----------------------------------------------------------------------------------------------------------
+
+
+
+
+```
+
+```{r different functions for removing trend, echo=FALSE, warning=TRUE}
+get_residuals <- function(x) {
+  
+time <- 1:nlayers(rainfed_Yield_GDHY_US)
+
+ if (sum(is.na(x[time]))){
+    rep(NA, length(x)) } 
+  else {
+    m <- lm(x~time)
+    q <- residuals(m)
+    return(q)
+  }
+}
+#-----------------------------------------------------------------------------------------------------------
+first_diff <- function(x) {
+ if (sum(is.na(x[time]))){
+    rep(NA, length(x)) } 
+  else {
+    diff = x-lag(x)
+    return(diff)
+  }
+}
+
+```
+
+```{r Apply functions and plot, echo=FALSE, warning=TRUE}
+lin_detr_rainfed_Yield_GDHY_US <- calc(rainfed_Yield_GDHY_US,get_residuals) # Create our residual (detrended) time series stack
+first_diff_rainfed_Yield_GDHY_US <- calc(rainfed_Yield_GDHY_US, first_dif)   
+
+Vector_of_years <- as.character(1981:2016)
+names(Detrended_rainfed_Yield_GDHY_US) <- Vector_of_years
+
+
+plot_rainfed_yield_US_lin_detr <- levelplot(lin_detr_rainfed_Yield_GDHY_US,
+                   margin=F,
+                   par.settings=mapTheme_Yield,
+                   main="Soybeans anomalies",
+                   sub="Based on residuals after removing the slope and the intercept")
+
+plot_rainfed_yield_US_lin_detr  + latticeExtra::layer(sp.lines(spatial_usa, col="gray30", lwd=0.5)) +latticeExtra::layer(sp.lines(states_of_interest_long, col="maroon", lwd=1.5))
+
+
+
+plot_rainfed_yield_US_first_diff <- levelplot(first_diff_rainfed_Yield_GDHY_US,
+                   margin=F,
+                   par.settings=mapTheme_Yield,
+                   main="Soybeans anomalies",
+                   sub="Based on first differences")
+
+plot_rainfed_yield_US_first_diff + latticeExtra::layer(sp.lines(spatial_usa, col="gray30", lwd=0.5)) +latticeExtra::layer(sp.lines(states_of_interest_long, col="maroon", lwd=1.5))
+
 
 ```
