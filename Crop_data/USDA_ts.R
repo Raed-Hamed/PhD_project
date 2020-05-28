@@ -33,16 +33,6 @@ Yield_ts <- USDA_df %>%
   group_by(State, .drop = TRUE) %>% 
   filter(n() == length(period))
 
-#Detrending functions
-Lin_model <-Yield_ts %>% 
-  group_split() %>% 
-  purrr::map(~ lm(Value ~ Year, data = .)) %>% 
-  map_df(broom::augment, .id = "State")
-
-# ---> Still need to figure out how to report ID within the augmented model results
- # mutate(state = group_keys(Yield_ts))
-
-
 #plot ts
 ggplot(Yield_ts, aes(x=Year, y=Value, color=State, group=State)) + 
   geom_line(size=1.2) +
@@ -51,6 +41,23 @@ ggplot(Yield_ts, aes(x=Year, y=Value, color=State, group=State)) +
   ylab("Yield (t/ha)") +
   ggtitle("dasdas") +
   theme(legend.position = "none")
+
+#linear detrending
+resid_yield_ts <-Yield_ts %>% 
+  group_map(~ lm(Value ~ Year, data = .))%>% 
+  set_names(unlist(group_keys(Yield_ts))) %>%   
+  map_df(broom::augment, .id = "State") %>% 
+  dplyr:: select( State,Year, .resid) 
+
+#plot detrending
+ggplot(resid_yield_ts, aes(x=Year, y=.resid, color=State, group=State)) + 
+  geom_line(size=1.2) +
+  scale_x_continuous(breaks=seq(1981, 2016,8))  +
+  facet_wrap(~ State, scale="fixed") +
+  ylab("Yield (t/ha)") +
+  ggtitle("Residuals") +
+  theme(legend.position = "none")
+
   
 #spatial def 
 yield_ts_spatial_df <- us_states() %>%
