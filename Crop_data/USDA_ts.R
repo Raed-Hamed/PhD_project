@@ -33,6 +33,16 @@ Yield_ts <- USDA_df %>%
   group_by(State, .drop = TRUE) %>% 
   filter(n() == length(period))
 
+#Detrending functions
+Lin_model <-Yield_ts %>% 
+  group_split() %>% 
+  purrr::map(~ lm(Value ~ Year, data = .)) %>% 
+  map_df(broom::augment, .id = "State")
+
+# ---> Still need to figure out how to report ID within the augmented model results
+ # mutate(state = group_keys(Yield_ts))
+
+
 #plot ts
 ggplot(Yield_ts, aes(x=Year, y=Value, color=State, group=State)) + 
   geom_line(size=1.2) +
