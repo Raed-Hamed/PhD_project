@@ -143,6 +143,13 @@ plot_rainfed_yield_US + latticeExtra::layer(sp.lines(spatial_usa, col="gray30", 
 rainfed_Yield_GDHY <-mask(nc_stack_yield, fraction_rf_to_ir >= 0.9, maskvalue =FALSE) 
 #rainfed_Yield_GDHY <-mask(rainfed_Yield_GDHY, mirca_rfc_raster > 10000, maskvalue =FALSE) 
 
+# writeRaster(rainfed_Yield_GDHY, 
+#             filename=file.path(dir_GHDY, "soybean_us.nc"), overwrite=TRUE, format="CDF",varname="Yield", varunit="t/ha", 
+#         longname="Soybean yield based on GDHY dataset --Initial raw data is stacked and masked for rainfed USA harvesting area based on the MIRCA2000 dataset", xname="Longitude",   yname="Latitude", zname="Time (Year)")
+# 
+# 
+# file_test_read <-file.path(dir_GHDY,"soybean_us.nc")   
+
 #-----------------------------------------------------------------------------------------------------------
 usa_states <- as_Spatial(st_geometry(us_states()))
 states_ommit <-as_Spatial(st_geometry(us_states(state = c("AK","HI","PR"))))
@@ -211,15 +218,15 @@ plot_rainfed_yield_US_first_diff + latticeExtra::layer(sp.lines(spatial_usa, col
 ```{r Clustering attempts, echo=FALSE, warning=TRUE}
 library(cluster)
 # Extract all values from the raster into a data frame
-rstDF <- values(rainfed_Yield_GDHY_US)
+rstDF <- values(lin_detr_rainfed_Yield_GDHY_US)
 
 # Check NA's in the data
 idx <- complete.cases(rstDF)
 
 # Initiate the raster datasets that will hold all clustering solutions 
 # from 2 groups/clusters up to 12
-rstKM <- raster(rainfed_Yield_GDHY_US[[1]])
-rstCLARA <- raster(rainfed_Yield_GDHY_US[[1]])
+rstKM <- raster(lin_detr_rainfed_Yield_GDHY_US[[1]])
+rstCLARA <- raster(lin_detr_rainfed_Yield_GDHY_US[[1]])
 
 
 
@@ -234,8 +241,8 @@ for(nClust in 2:12){
   cla <- clara(rstDF[idx, ], k = nClust, metric = "manhattan")
   
   # Create a temporary integer vector for holding cluster numbers
-  kmClust <- vector(mode = "integer", length = ncell(rainfed_Yield_GDHY_US))
-  claClust <- vector(mode = "integer", length = ncell(rainfed_Yield_GDHY_US))
+  kmClust <- vector(mode = "integer", length = ncell(lin_detr_rainfed_Yield_GDHY_US))
+  claClust <- vector(mode = "integer", length = ncell(lin_detr_rainfed_Yield_GDHY_US))
   
   # Generate the temporary clustering vector for K-means (keeps track of NA's)
   kmClust[!idx] <- NA
@@ -247,9 +254,9 @@ for(nClust in 2:12){
   
   # Create a temporary raster for holding the new clustering solution
   # K-means
-  tmpRstKM <- raster(rainfed_Yield_GDHY_US[[1]])
+  tmpRstKM <- raster(lin_detr_rainfed_Yield_GDHY_US[[1]])
   # CLARA
-  tmpRstCLARA <- raster(rainfed_Yield_GDHY_US[[1]])
+  tmpRstCLARA <- raster(lin_detr_rainfed_Yield_GDHY_US[[1]])
 
   # Set raster values with the cluster vector
   # K-means
@@ -341,27 +348,27 @@ abline(h = seq(0.30,0.44,0.02), lty=2, col="light grey")
 
 legend("topright", legend=c("K-means","CLARA"), col=c("red","blue"), lty=1, lwd=1)
 
-plot_rainfed_yield_US_KM_Clustering<- levelplot(rstCLARA[[5]],
+plot_rainfed_yield_US_KM_Clustering<- levelplot(rstKM[[8]],
                    margin=F,
                    par.settings=mapTheme_Yield,
-                   main="K mean 6 clusters",
+                   main="K mean 9 clusters",
                    sub="Based on linear detrending")
 
 plot_rainfed_yield_US_KM_Clustering + latticeExtra::layer(sp.lines(spatial_usa, col="gray30", lwd=0.5)) +latticeExtra::layer(sp.lines(states_of_interest_long, col="maroon", lwd=1.5))
 
 ###########DBSCAN
-library(fossil)
-
-r<-rainfed_Yield_GDHY_US[[32]] #my raster taken from a first layer of a stack
-    rlon<-rlat<-r #copy r to rlon and rlat rasters [1]][1]which will contain the longitude and latitude
-    xy<-xyFromCell(r,1:length(r)) #matrix of logitudes (x) and latitudes(y)
-    rlon[]<-xy[,1] #raster of longitudes
-    rlat[]<-xy[,2] #raster of latitides
+# library(fossil)
+# 
+# r<-rainfed_Yield_GDHY_US[[32]] #my raster taken from a first layer of a stack
+#     rlon<-rlat<-r #copy r to rlon and rlat rasters [1]][1]which will contain the longitude and latitude
+#     xy<-xyFromCell(r,1:length(r)) #matrix of logitudes (x) and latitudes(y)
+#     rlon[]<-xy[,1] #raster of longitudes
+#     rlat[]<-xy[,2] #raster of latitides
+#     
+#     
     
-    
-    
-inputdata <-(data.frame(long=rlon[], lat=rlat[], RecordID=values(rainfed_Yield_GDHY_US[[32]])))
-idx <-complete.cases(inputdata)
-d = earth.dist(inputdata[idx,], dist = TRUE) 
-ds <- dbscan(d,eps = 0.5,MinPts = 10, method = "dist")
+# inputdata <-(data.frame(long=rlon[], lat=rlat[], RecordID=values(rainfed_Yield_GDHY_US[[32]])))
+# idx <-complete.cases(inputdata)
+# d = earth.dist(inputdata[idx,], dist = TRUE) 
+# ds <- dbscan(d,eps = 0.5,MinPts = 10, method = "dist")
 ```
